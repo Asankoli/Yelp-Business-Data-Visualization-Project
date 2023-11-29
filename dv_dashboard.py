@@ -147,9 +147,11 @@ import seaborn as sns
 from streamlit_folium import folium_static
 import folium
 from folium import plugins
-
+from mpl_toolkits.basemap import Basemap
 # Page Configuration
-st.set_page_config(page_title="Yelp Business Dashboard", page_icon=":bar_chart:", layout="wide")
+st.set_page_config(page_title="Yelp Business Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state='collapsed')
+
+
 
 # Read Data
 @st.cache_data
@@ -163,6 +165,7 @@ def get_data_from_drive(drive_link):
 
 # Main Page
 st.title(":bar_chart: Yelp Business Dashboard")
+tab1,tab2,tab3 = st.tabs(['Overall','Rating','Sentimental Analysis'])
 
 # Data Loading and Filtering
 drive_link = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
@@ -181,53 +184,96 @@ if df_selection.empty:
     st.stop()
 
 # Expander for Graphs
-with st.expander("Toggle Visibility"):
-    # Star Rating Distribution Graph
-    st.subheader("Star Rating Distribution")
-    req = df_selection['stars'].value_counts().sort_index()
-    fig_stars = plt.figure(figsize=(8, 4))
-    ax = sns.barplot(x=req.index, y=req.values, alpha=0.8)
-    plt.title("Star Rating Distribution")
-    plt.ylabel('# of businesses', fontsize=12)
-    plt.xlabel('Star Ratings', fontsize=12)
-    rects = ax.patches
-    labels = req.values
-    for rect, label in zip(rects, labels):
-        height = rect.get_height()
-        ax.text(rect.get_x() + rect.get_width() / 2, height + 5, label, ha='center', va='bottom')
-    st.pyplot(fig_stars)
+# with st.expander("Toggle Visibility"):
+#     # Star Rating Distribution Graph
+with tab2:
+    col1,col2,col3 = st.columns(3)
+    with col1:
+        st.header("Vegas Ratings Heatmap Animation")
+        rating_data = df[['latitude', 'longitude', 'stars', 'review_count']]
+        rating_data['popularity'] = rating_data['stars'] * rating_data['review_count']
+        data = []
+        stars_list = list(df_selection['stars'].unique())
+        lat, lon, zoom_start = 36.127430, -115.138460, 11
+        lon_min, lon_max = lon - 0.3, lon + 0.5
+        lat_min, lat_max = lat - 0.4, lat + 0.5
+        ratings_data_vegas = rating_data[
+            (rating_data["longitude"] > lon_min) &
+            (rating_data["longitude"] < lon_max) &
+            (rating_data["latitude"] > lat_min) &
+            (rating_data["latitude"] < lat_max)
+        ]
+        for star in stars_list:
+            subset = ratings_data_vegas[ratings_data_vegas['stars'] == star]
+            data.append(subset[['latitude', 'longitude']].values.tolist())
+        m = folium.Map(location=[lat, lon], tiles="OpenStreetMap", zoom_start=zoom_start)
+        hm = plugins.HeatMapWithTime(data, max_opacity=0.3, auto_play=True, display_index=True, radius=7)
+        hm.add_to(m)
+        folium_static(m, width=500, height=300)
 
-    # Vegas Ratings Heatmap Animation
-    st.subheader("Vegas Ratings Heatmap Animation")
-    rating_data = df[['latitude', 'longitude', 'stars', 'review_count']]
-    rating_data['popularity'] = rating_data['stars'] * rating_data['review_count']
-    data = []
-    stars_list = list(df_selection['stars'].unique())
-    lat, lon, zoom_start = 36.127430, -115.138460, 11
-    lon_min, lon_max = lon - 0.3, lon + 0.5
-    lat_min, lat_max = lat - 0.4, lat + 0.5
-    ratings_data_vegas = rating_data[
-        (rating_data["longitude"] > lon_min) &
-        (rating_data["longitude"] < lon_max) &
-        (rating_data["latitude"] > lat_min) &
-        (rating_data["latitude"] < lat_max)
-    ]
-    for star in stars_list:
-        subset = ratings_data_vegas[ratings_data_vegas['stars'] == star]
-        data.append(subset[['latitude', 'longitude']].values.tolist())
-    m = folium.Map(location=[lat, lon], tiles="OpenStreetMap", zoom_start=zoom_start)
-    hm = plugins.HeatMapWithTime(data, max_opacity=0.3, auto_play=True, display_index=True, radius=7)
-    hm.add_to(m)
-    folium_static(m, width=725, height=500)
+    with col2:
+        st.header("Star Rating Distribution")
+        req = df_selection['stars'].value_counts().sort_index()
+        # fig_stars = plt.figure(figsize=(8, 8))
+        # ax = sns.barplot(x=req.index, y=req.values, alpha=0.8)
+        # plt.title("Star Rating Distribution")
+        # plt.ylabel('# of businesses', fontsize=12)
+        # plt.xlabel('Star Ratings', fontsize=12)
+        # rects = ax.patches
+        # labels = req.values
+        # for rect, label in zip(rects, labels):
+        #     height = rect.get_height()
+        #     ax.text(rect.get_x() + rect.get_width() / 2, height + 5, label, ha='center', va='bottom')
+        # st.pyplot(fig_stars)
+        st.bar_chart(req)
 
-    # Map of All Las Vegas Restaurants
-    st.subheader("Map of All Las Vegas Restaurants")
-    m_restaurants = folium.Map(location=[36.14, -115.2], zoom_start=11, tiles="OpenStreetMap")
-    for index, row in df_selection.iterrows():
-        folium.CircleMarker(location=[row['latitude'], row['longitude']], radius=1, fill_opacity=0.6,
-                            color='purple').add_to(m_restaurants)
-    folium_static(m_restaurants, width=800, height=600)
+# Vegas Ratings Heatmap Animation
+    
 
+
+# Map of All Las Vegas Restaurants
+with tab1: 
+    # st.header("Map of All Las Vegas Restaurants")
+    # m_restaurants = folium.Map(location=[36.14, -115.2], zoom_start=11, tiles="OpenStreetMap")
+    # for index, row in df_selection.iterrows():
+    #     folium.CircleMarker(location=[row['latitude'], row['longitude']], radius=1, fill_opacity=0.6,
+    #                         color='purple').add_to(m_restaurants)
+    # folium_static(m_restaurants, width=300, height=300)
+    #basic basemap of the world
+
+# Assuming 'business' is your DataFrame with latitude and longitude columns
+    # Define the figure size
+
+
+    # Use ortho projection for the globe type version
+    #  Set the size of the map
+    # Set the size of the map
+    map_width = 800  # Specify the width in pixels
+    map_height = 600  # Specify the height in pixels
+
+    # Set up the Basemap
+    fig, ax = plt.subplots(figsize=(map_width / 100, map_height / 100))
+    m1 = Basemap(projection='ortho', lat_0=20, lon_0=-50, ax=ax)
+
+    # Hex codes from google maps color palette = http://www.color-hex.com/color-palette/9261
+    # Add continents
+    m1.fillcontinents(color='#bbdaa4', lake_color='#4a80f5')
+    # Add the oceans
+    m1.drawmapboundary(fill_color='#4a80f5')
+    # Draw the boundaries of the countries
+    m1.drawcountries(linewidth=0.1, color="black")
+
+    # Add the scatter points to indicate the locations of the businesses
+    mxy = m1(df["longitude"].tolist(), df["latitude"].tolist())
+    m1.scatter(mxy[0], mxy[1], s=3, c="orange", lw=3, alpha=1, zorder=5)
+
+    # Set title
+    st.title("World-wide Yelp Reviews")
+
+    # Show the plot in Streamlit
+    st.pyplot(fig)
+
+    
 # Hide Streamlit Style
 hide_st_style = """
         <style>
