@@ -167,9 +167,23 @@ def get_data_from_drive(drive_link):
 st.title(":bar_chart: Yelp Business Dashboard")
 tab1,tab2,tab3 = st.tabs(['Overall','Rating','Sentimental Analysis'])
 
+@st.cache_data
+def load_data(url):
+    df = get_data_from_drive(url)
+    return df
+
+@st.cache_data
+def load_data_local(url):
+    df =  pd.read_csv(url)
+    return df
+
+
 # Data Loading and Filtering
 drive_link = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
-df = get_data_from_drive(drive_link)
+df = load_data(drive_link)
+
+review_data = load_data_local('./yelp_review.csv')
+st.dataframe(review_data)
 
 
 # Sidebar
@@ -191,7 +205,7 @@ with tab2:
     with col1:
         st.header("Vegas Ratings Heatmap Animation")
         rating_data = df[['latitude', 'longitude', 'stars', 'review_count']]
-        rating_data['popularity'] = rating_data['stars'] * rating_data['review_count']
+        rating_data.loc['popularity'] = rating_data['stars'] * rating_data['review_count']
         data = []
         stars_list = list(df_selection['stars'].unique())
         lat, lon, zoom_start = 36.127430, -115.138460, 11
@@ -274,6 +288,12 @@ with tab1:
     st.pyplot(fig)
 
     
+with tab3:
+    st.header('Sentimental Analysis of reviews')
+    st.write("sjkdjknjkn")
+    st.write(review_data.iloc[:5,:])
+
+
 # Hide Streamlit Style
 hide_st_style = """
         <style>
