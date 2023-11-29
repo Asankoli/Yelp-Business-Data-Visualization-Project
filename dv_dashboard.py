@@ -136,9 +136,6 @@
 
 
 
-# Install necessary packages
-# !pip install streamlit pandas gdown seaborn matplotlib folium streamlit_folium
-
 import streamlit as st
 import pandas as pd
 import gdown
@@ -187,7 +184,7 @@ if df_selection.empty:
 # with st.expander("Toggle Visibility"):
 #     # Star Rating Distribution Graph
 with tab2:
-    col1,col2,col3 = st.columns(3)
+    col1,col2 = st.columns(2)
     with col1:
         st.header("Vegas Ratings Heatmap Animation")
         rating_data = df[['latitude', 'longitude', 'stars', 'review_count']]
@@ -233,47 +230,30 @@ with tab2:
 
 # Map of All Las Vegas Restaurants
 with tab1: 
-    # st.header("Map of All Las Vegas Restaurants")
-    # m_restaurants = folium.Map(location=[36.14, -115.2], zoom_start=11, tiles="OpenStreetMap")
-    # for index, row in df_selection.iterrows():
-    #     folium.CircleMarker(location=[row['latitude'], row['longitude']], radius=1, fill_opacity=0.6,
-    #                         color='purple').add_to(m_restaurants)
-    # folium_static(m_restaurants, width=300, height=300)
-    #basic basemap of the world
+    col1, col2, col3 = st.columns(3)
+    with col2:
+        # Basic basemap of the world
+        fig, ax = plt.subplots(figsize=(15, 6))
 
-# Assuming 'business' is your DataFrame with latitude and longitude columns
-    # Define the figure size
+        # Use ortho projection for the globe type version
+        m1 = Basemap(projection='ortho', lat_0=20, lon_0=-50, ax=ax)
+
+        # Hex codes from google maps color palette = http://www.color-hex.com/color-palette/9261
+        # Add continents
+        m1.fillcontinents(color='#bbdaa4', lake_color='#4a80f5')
+        # Add the oceans
+        m1.drawmapboundary(fill_color='#4a80f5')
+        # Draw the boundaries of the countries
+        m1.drawcountries(linewidth=0.1, color="black")
+
+        # Add the scatter points to indicate the locations of the businesses
+        mxy = m1(df["longitude"].tolist(), df["latitude"].tolist())
+        m1.scatter(mxy[0], mxy[1], s=3, c="orange", lw=3, alpha=1, zorder=5)
+
+        plt.title("World-wide Yelp Reviews")
+        st.pyplot(fig)
 
 
-    # Use ortho projection for the globe type version
-    #  Set the size of the map
-    # Set the size of the map
-    map_width = 800  # Specify the width in pixels
-    map_height = 600  # Specify the height in pixels
-
-    # Set up the Basemap
-    fig, ax = plt.subplots(figsize=(map_width / 100, map_height / 100))
-    m1 = Basemap(projection='ortho', lat_0=20, lon_0=-50, ax=ax)
-
-    # Hex codes from google maps color palette = http://www.color-hex.com/color-palette/9261
-    # Add continents
-    m1.fillcontinents(color='#bbdaa4', lake_color='#4a80f5')
-    # Add the oceans
-    m1.drawmapboundary(fill_color='#4a80f5')
-    # Draw the boundaries of the countries
-    m1.drawcountries(linewidth=0.1, color="black")
-
-    # Add the scatter points to indicate the locations of the businesses
-    mxy = m1(df["longitude"].tolist(), df["latitude"].tolist())
-    m1.scatter(mxy[0], mxy[1], s=3, c="orange", lw=3, alpha=1, zorder=5)
-
-    # Set title
-    st.title("World-wide Yelp Reviews")
-
-    # Show the plot in Streamlit
-    st.pyplot(fig)
-
-    
 # Hide Streamlit Style
 hide_st_style = """
         <style>
