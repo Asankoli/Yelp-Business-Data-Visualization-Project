@@ -148,10 +148,21 @@ from streamlit_folium import folium_static
 import folium
 from folium import plugins
 from mpl_toolkits.basemap import Basemap
+from collections import Counter
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.sentiment import SentimentIntensityAnalyzer
+
+
+
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('vader_lexicon')
+
 # Page Configuration
 st.set_page_config(page_title="Yelp Business Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state='collapsed')
-
-
+st.set_option('deprecation.showPyplotGlobalUse',False)
 
 # Read Data
 @st.cache_data
@@ -172,18 +183,17 @@ def load_data(url):
     df = get_data_from_drive(url)
     return df
 
-@st.cache_data
-def load_data_local(url):
-    df =  pd.read_csv(url)
-    return df
+# @st.cache_data
+# def load_data_local(url):
+#     df =  pd.read_csv(url)
+#     return df
 
 
 # Data Loading and Filtering
-drive_link = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
-df = load_data(drive_link)
-
-review_data = load_data_local('./yelp_review.csv')
-st.dataframe(review_data)
+business_link = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
+review_link = "https://drive.google.com/uc?id=1QP1nBDNw6mW-uj5RynsLvnnYRuj4s_Lp"
+df = load_data(business_link)
+review_df = load_data(review_link)
 
 
 # Sidebar
@@ -191,6 +201,69 @@ st.sidebar.header("Filter Options:")
 unique_cities = df['city'].unique()
 city = st.sidebar.multiselect("Select City:", options=unique_cities, default=['Las Vegas'])
 df_selection = df[df['city'].isin(city)]
+
+
+def plot_useful_reviews(mon_ami_gabi_reviews):
+    useful_reviews = mon_ami_gabi_reviews.groupby('useful').size().reset_index(name='Count')
+    useful_reviews = useful_reviews.sort_values(by='Count', ascending=False).head(10)
+    
+    plt.figure(figsize=(10, 6))
+    bar_plot = plt.bar(useful_reviews['useful'].astype(str), useful_reviews['Count'], color='skyblue')
+    for rect, count in zip(bar_plot, useful_reviews['Count']):
+        plt.text(rect.get_x() + rect.get_width() / 2, count + 0.5, f"({count})", ha='center', va='bottom')
+    
+    plt.xlabel('Useful Reviews')
+    plt.ylabel('Count')
+    plt.title('Useful Reviews and Count')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    st.pyplot()
+
+def preprocess_text(text):
+    stop_words = set(stopwords.words('english'))
+    words = word_tokenize(text.lower())
+    words = [word for word in words if word.isalpha() and word not in stop_words and word not in ['food', 'restaurant']]
+    return words
+
+def plot_word_count(business_id):
+    reviews_filtered = review_df[review_df['business_id'] == business_id]
+    reviews_filtered['text'] = reviews_filtered['text'].apply(preprocess_text)
+    words = [word for sublist in reviews_filtered['text'] for word in sublist]
+    word_counts = Counter(words)
+    most_common_words = dict(sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:10])
+    
+    plt.figure(figsize=(10, 6))
+    bar_plot = plt.bar(most_common_words.keys(), most_common_words.values(), color='skyblue')
+    for rect, count in zip(bar_plot, most_common_words.values()):
+        plt.text(rect.get_x() + rect.get_width() / 2, count + 0.5, f"({count})", ha='center', va='bottom')
+
+    plt.xlabel('Word')
+    plt.ylabel('Word Count')
+    plt.title('Word Count')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    st.pyplot()
+
+def positive_words_bar_graph(reviews, business_id):
+    sia = SentimentIntensityAnalyzer()
+    reviews_filtered = reviews[reviews['business_id'] == business_id]
+    reviews_filtered['text'] = reviews_filtered['text'].apply(lambda x: word_tokenize(x.lower()))
+    positive_words = {}
+    for text in reviews_filtered['text']:
+        for word in text:
+            if sia.polarity_scores(word)['compound'] > 0:
+                positive_words[word] = positive_words.get(word, 0) + 1
+
+    sorted_positive_words = dict(sorted(positive_words.items(), key=lambda x: x[1], reverse=True)[:20])
+    
+    plt.figure(figsize=(10, 6))
+    bar_plot = plt.bar(sorted_positive_words.keys(), sorted_positive_words.values(), color='lightgreen')
+    plt.xlabel('Word')
+    plt.ylabel('Frequency')
+    plt.title('Top Positive Words')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    st.pyplot()
 
 # Check if the dataframe is empty:
 if df_selection.empty:
@@ -290,8 +363,11 @@ with tab1:
     
 with tab3:
     st.header('Sentimental Analysis of reviews')
-    st.write("sjkdjknjkn")
-    st.write(review_data.iloc[:5,:])
+    mon_ami_gabi_reviews = review_df[review_df.business_id== "4JNXUYY8wbaaDmk3BPzlWw"]
+    st.write(mon_ami_gabi_reviews)
+    plot_useful_reviews(mon_ami_gabi_reviews)
+    plot_word_count("4JNXUYY8wbaaDmk3BPzlWw")
+    positive_words_bar_graph(review_df, "4JNXUYY8wbaaDmk3BPzlWw")
 
 
 # Hide Streamlit Style
