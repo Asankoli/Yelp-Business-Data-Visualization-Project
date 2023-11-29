@@ -148,6 +148,10 @@ from mpl_toolkits.basemap import Basemap
 # Page Configuration
 st.set_page_config(page_title="Yelp Business Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state='collapsed')
 
+# import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 
 
 # Read Data
@@ -254,6 +258,38 @@ with tab1:
         st.pyplot(fig)
 
 
+drive_link_review = "https://drive.google.com/uc?id=1QP1nBDNw6mW-uj5RynsLvnnYRuj4s_Lp"
+df_review = get_data_from_drive(drive_link_review)
+
+with tab3:
+    # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+    business_id = "VyVIneSU7XAWgMBllI6LnQ"
+
+    # Filter reviews for a specific business_id
+    business_reviews = df_review[df_review['business_id'] == business_id]
+
+    # Tokenize and remove stopwords
+    stop_words = set(stopwords.words('english'))
+    business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words and word.lower() not in ['food', 'restaurant']]))
+
+    # Count word occurrences
+    word_counts = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
+    word_counts.columns = ['word', 'n']
+
+    # Sort and get top 10 words
+    top_words = word_counts.head(10)
+
+    # Plot the bar chart
+    fig, ax = plt.subplots()
+    ax.barh(top_words['word'], top_words['n'], color='skyblue')
+    ax.set_xlabel('Word Count')
+    ax.set_ylabel('Word')
+    ax.set_title('Word Count')
+
+    # Show the plot in Streamlit
+    st.pyplot(fig)
+
+
 # Hide Streamlit Style
 hide_st_style = """
         <style>
@@ -262,4 +298,4 @@ hide_st_style = """
         header {visibility: hidden;}
         </style>
         """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+st.markdown(hide_st_style, unsafe_allow_html=True)  
