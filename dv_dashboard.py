@@ -149,15 +149,19 @@ from mpl_toolkits.basemap import Basemap
 st.set_page_config(page_title="Yelp Business Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state='collapsed')
 
 # import matplotlib.pyplot as plt
+import nltk
 from wordcloud import WordCloud
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from PIL import Image
+from afinn import Afinn
+import numpy as np
 
 
 # Read Data
 @st.cache_data
 def get_data_from_drive(drive_link):
-    output = 'data.csv'
+    output = 'data_business.csv'
     gdown.download(drive_link, output, quiet=True)
     df = pd.read_csv(output, header=0)
     return df
@@ -169,12 +173,13 @@ st.title(":bar_chart: Yelp Business Dashboard")
 tab1,tab2,tab3 = st.tabs(['Overall','Rating','Sentimental Analysis'])
 
 # Data Loading and Filtering
-drive_link = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
-df = get_data_from_drive(drive_link)
+drive_link_business = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
+df = get_data_from_drive(drive_link_business)
 
 
 # Sidebar
 st.sidebar.header("Filter Options:")
+# st.header(df.columns)
 unique_cities = df['city'].unique()
 city = st.sidebar.multiselect("Select City:", options=unique_cities, default=['Las Vegas'])
 df_selection = df[df['city'].isin(city)]
@@ -210,7 +215,7 @@ with tab2:
         m = folium.Map(location=[lat, lon], tiles="OpenStreetMap", zoom_start=zoom_start)
         hm = plugins.HeatMapWithTime(data, max_opacity=0.3, auto_play=True, display_index=True, radius=7)
         hm.add_to(m)
-        folium_static(m, width=500, height=300)
+        folium_static(m, width=600, height=400)
 
     with col2:
         st.header("Star Rating Distribution")
@@ -257,37 +262,182 @@ with tab1:
         plt.title("World-wide Yelp Reviews")
         st.pyplot(fig)
 
-
+def get_data_from_drive_review(drive_link):
+    output = 'data_review.csv'
+    gdown.download(drive_link, output, quiet=True)
+    df = pd.read_csv(output, header=0)
+    return df
 drive_link_review = "https://drive.google.com/uc?id=1QP1nBDNw6mW-uj5RynsLvnnYRuj4s_Lp"
-df_review = get_data_from_drive(drive_link_review)
+df_review = get_data_from_drive_review(drive_link_review)
 
 with tab3:
-    # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
-    business_id = "VyVIneSU7XAWgMBllI6LnQ"
+    col1, col2, col3 = st.columns(3)
+    with col2:
+        # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+        business_id = "4JNXUYY8wbaaDmk3BPzlWw"
 
-    # Filter reviews for a specific business_id
-    business_reviews = df_review[df_review['business_id'] == business_id]
+        # Filter reviews for a specific business_id
+        business_reviews = df_review[df_review['business_id'] == business_id]
+        # st.title(len(business_reviews))
+        # Tokenize and remove stopwords
+        stop_words = set(stopwords.words('english'))
+        business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words and word.lower() not in ['food', 'restaurant']]))
 
-    # Tokenize and remove stopwords
-    stop_words = set(stopwords.words('english'))
-    business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words and word.lower() not in ['food', 'restaurant']]))
+        # Count word occurrences
+        word_counts = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
+        word_counts.columns = ['word', 'n']
 
-    # Count word occurrences
-    word_counts = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
-    word_counts.columns = ['word', 'n']
+        # Sort and get top 10 words
+        top_words = word_counts.head(10)
+        
+        # Plot the bar chart
+        fig, ax = plt.subplots()
+        ax.barh(top_words['word'], top_words['n'], color='skyblue')
+        ax.set_xlabel('Word Count')
+        ax.set_ylabel('Word')
+        ax.set_title('Word Count')
 
-    # Sort and get top 10 words
-    top_words = word_counts.head(10)
+        # Show the plot in Streamlit
+        st.pyplot(fig)
+    with col3:
+        
 
-    # Plot the bar chart
-    fig, ax = plt.subplots()
-    ax.barh(top_words['word'], top_words['n'], color='skyblue')
-    ax.set_xlabel('Word Count')
-    ax.set_ylabel('Word')
-    ax.set_title('Word Count')
+        # def positive_words_bar_graph(reviews, business_id):
+        #     # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+        #     business_reviews = reviews[reviews['business_id'] == business_id]
 
-    # Show the plot in Streamlit
-    st.pyplot(fig)
+        #     # Tokenize and remove stopwords
+        #     stop_words = set(stopwords.words('english'))
+        #     afinn = Afinn()
+
+        #     business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+
+        #     # Calculate Afinn scores
+        #     business_reviews['score'] = business_reviews['text'].apply(lambda x: afinn.score(x))
+
+        #     # Count word occurrences and calculate contributions
+        #     contributions = business_reviews.groupby('text')['score'].sum().reset_index()
+        #     contributions.columns = ['word', 'contribution']
+
+        #     # Get top 20 positive words
+        #     top_positive_words = contributions.sort_values(by='contribution', ascending=False).head(20)
+        #     st.write(top_positive_words)
+        #     # Plot bar graph
+        #     fig, ax = plt.subplots()
+        #     colors = top_positive_words['contribution'].apply(lambda x: 'green' if x > 0 else 'red')
+        #     ax.barh(top_positive_words['word'], top_positive_words['contribution'], color=colors)
+        #     ax.set_xlabel('Contribution')
+        #     ax.set_ylabel('Word')
+        #     ax.set_title('Positive Words Contribution')
+
+        #     return fig
+        # def positive_words_bar_graph(reviews, business_id):
+        #     # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+        #     business_reviews = reviews[reviews['business_id'] == business_id]
+            
+        #     # Tokenize and remove stopwords
+        #     stop_words = set(stopwords.words('english'))
+        #     business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+            
+        #     # Count word occurrences and calculate contributions
+        #     contributions = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
+        #     contributions.columns = ['word', 'occurrences']
+            
+        #     afinn = pd.DataFrame({'word': list(stopwords.words('english')), 'score': 0})
+        #     contributions = pd.merge(contributions, afinn, how='left', on='word')
+        #     contributions['contribution'] = contributions['occurrences'] * contributions['score']
+            
+        #     # Get top 20 positive words
+        #     top_positive_words = contributions.sort_values(by='contribution', ascending=False).head(20)
+        #     st.title(len(top_positive_words))
+        #     st.write(top_positive_words)
+            
+
+        #     # Plot bar graph
+        #     fig, ax = plt.subplots()
+        #     colors = top_positive_words['contribution'].apply(lambda x: 'green' if x > 0 else 'red')
+        #     ax.barh(top_positive_words['word'], top_positive_words['contribution'], color=colors)
+        #     ax.set_xlabel('Contribution')
+        #     ax.set_ylabel('Word')
+        #     ax.set_title('Positive Words Contribution')
+
+        #     return fig
+        
+        # def positive_words_bar_graph(reviews, business_id):
+        #     # Tokenize and remove stopwords
+        #     business_reviews = reviews[reviews['business_id'] == business_id]
+        #     stop_words = set(stopwords.words('english'))
+        #     business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+            
+        #     afinn = Afinn()
+
+        #     # Tokenize and count occurrences
+        #     contributions = business_reviews['text'].apply(lambda x: word_tokenize(x)).explode().value_counts().reset_index()
+        #     contributions.columns = ['word', 'occurrences']
+
+        #     # Calculate contributions using Afinn scores
+        #     contributions['score'] = contributions['word'].apply(lambda word: afinn.score(word))
+            
+
+        #     # Get top 20 positive words
+        #     top_positive_words = contributions.groupby('word')['score'].sum().reset_index().nlargest(20, 'score')
+        #     top_positive_words.reset_index()
+        #     st.write(top_positive_words)
+            
+        #     # Plot bar graph
+        #     fig, ax = plt.subplots()
+        #     colors = np.where(top_positive_words['score'] > 0, 'green', 'red')
+        #     sns.barplot(x='score', y='word', data=top_positive_words, palette=colors)
+        #     ax.set_xlabel('Score')
+        #     ax.set_ylabel('Word')
+        #     ax.set_title('Positive Words Contribution')
+
+        #     return fig
+            
+
+        def positive_words_bar_graph(reviews, business_id):
+            # Tokenize and remove stopwords
+            business_reviews = reviews[reviews['business_id'] == business_id]
+            stop_words = set(stopwords.words('english'))
+            business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+            
+            afinn = Afinn()
+
+            # Tokenize and count occurrences
+            contributions = business_reviews['text'].apply(lambda x: word_tokenize(x)).explode().value_counts().reset_index()
+            contributions.columns = ['word', 'occurrences']
+
+            # Calculate contributions using Afinn scores
+            contributions['score'] = contributions['word'].apply(lambda word: afinn.score(word))
+            
+            # Get top 20 positive and negative words
+            top_words = contributions.groupby('word')['score'].sum().reset_index()
+            
+            top_words = pd.concat([top_words.nlargest(20, 'score'), top_words.nsmallest(20, 'score')], ignore_index=True)
+            # top_words = top_words.nlargest(20, 'score').append(top_words.nsmallest(20, 'score'))
+            # st.write(top_words)
+            # Plot bar graph
+            fig, ax = plt.subplots()
+            colors = np.where(top_words['score'] > 0, 'green', 'red')
+            sns.barplot(x='score', y='word', data=top_words, palette=colors)
+            ax.set_xlabel('Score')
+            ax.set_ylabel('Word')
+            ax.set_title('Top 20 Positive and Negative Words Contribution')
+
+            return fig
+
+
+
+        # Example usage
+        # Replace this with your actual reviews DataFrame and business_id
+        reviews = df_review[['business_id', 'text']] 
+        business_id = "4JNXUYY8wbaaDmk3BPzlWw"
+
+        # Create the bar graph
+        fig = positive_words_bar_graph(reviews, business_id)
+        st.pyplot(fig)
+        # Show the plot in Streamlit
+        
 
 
 # Hide Streamlit Style
