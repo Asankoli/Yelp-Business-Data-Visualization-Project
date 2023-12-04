@@ -136,9 +136,6 @@
 
 
 
-# Install necessary packages
-# !pip install streamlit pandas gdown seaborn matplotlib folium streamlit_folium
-
 import streamlit as st
 import pandas as pd
 import gdown
@@ -148,26 +145,23 @@ from streamlit_folium import folium_static
 import folium
 from folium import plugins
 from mpl_toolkits.basemap import Basemap
-from collections import Counter
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.sentiment import SentimentIntensityAnalyzer
-
-
-
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('vader_lexicon')
-
+from wordcloud import WordCloud
 # Page Configuration
 st.set_page_config(page_title="Yelp Business Dashboard", page_icon=":bar_chart:", layout="wide", initial_sidebar_state='collapsed')
-st.set_option('deprecation.showPyplotGlobalUse',False)
+
+# import matplotlib.pyplot as plt
+import nltk
+from wordcloud import WordCloud
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from afinn import Afinn
+import numpy as np
+from collections import Counter
 
 # Read Data
 @st.cache_data
 def get_data_from_drive(drive_link):
-    output = 'data.csv'
+    output = 'data_business.csv'
     gdown.download(drive_link, output, quiet=True)
     df = pd.read_csv(output, header=0)
     return df
@@ -178,107 +172,49 @@ def get_data_from_drive(drive_link):
 st.title(":bar_chart: Yelp Business Dashboard")
 tab1,tab2,tab3 = st.tabs(['Overall','Rating','Sentimental Analysis'])
 
-@st.cache_data
-def load_data(url):
-    df = get_data_from_drive(url)
-    return df
-
-# @st.cache_data
-# def load_data_local(url):
-#     df =  pd.read_csv(url)
-#     return df
-
-
 # Data Loading and Filtering
-business_link = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
-review_link = "https://drive.google.com/uc?id=1QP1nBDNw6mW-uj5RynsLvnnYRuj4s_Lp"
-df = load_data(business_link)
-review_df = load_data(review_link)
+drive_link_business = "https://drive.google.com/uc?id=19eVp7E2a6agUN1Q1G2CdEdZ39_F-aR9T"
+df = get_data_from_drive(drive_link_business)
 
 
 # Sidebar
 st.sidebar.header("Filter Options:")
+# st.header(df.columns)
 unique_cities = df['city'].unique()
 city = st.sidebar.multiselect("Select City:", options=unique_cities, default=['Las Vegas'])
 df_selection = df[df['city'].isin(city)]
-
-
-def plot_useful_reviews(mon_ami_gabi_reviews):
-    useful_reviews = mon_ami_gabi_reviews.groupby('useful').size().reset_index(name='Count')
-    useful_reviews = useful_reviews.sort_values(by='Count', ascending=False).head(10)
-    
-    plt.figure(figsize=(10, 6))
-    bar_plot = plt.bar(useful_reviews['useful'].astype(str), useful_reviews['Count'], color='skyblue')
-    for rect, count in zip(bar_plot, useful_reviews['Count']):
-        plt.text(rect.get_x() + rect.get_width() / 2, count + 0.5, f"({count})", ha='center', va='bottom')
-    
-    plt.xlabel('Useful Reviews')
-    plt.ylabel('Count')
-    plt.title('Useful Reviews and Count')
-    plt.xticks(rotation=90)
-    plt.tight_layout()
-    st.pyplot()
-
-def preprocess_text(text):
-    stop_words = set(stopwords.words('english'))
-    words = word_tokenize(text.lower())
-    words = [word for word in words if word.isalpha() and word not in stop_words and word not in ['food', 'restaurant']]
-    return words
-
-def plot_word_count(business_id):
-    reviews_filtered = review_df[review_df['business_id'] == business_id]
-    reviews_filtered['text'] = reviews_filtered['text'].apply(preprocess_text)
-    words = [word for sublist in reviews_filtered['text'] for word in sublist]
-    word_counts = Counter(words)
-    most_common_words = dict(sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:10])
-    
-    plt.figure(figsize=(10, 6))
-    bar_plot = plt.bar(most_common_words.keys(), most_common_words.values(), color='skyblue')
-    for rect, count in zip(bar_plot, most_common_words.values()):
-        plt.text(rect.get_x() + rect.get_width() / 2, count + 0.5, f"({count})", ha='center', va='bottom')
-
-    plt.xlabel('Word')
-    plt.ylabel('Word Count')
-    plt.title('Word Count')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot()
-
-def positive_words_bar_graph(reviews, business_id):
-    sia = SentimentIntensityAnalyzer()
-    reviews_filtered = reviews[reviews['business_id'] == business_id]
-    reviews_filtered['text'] = reviews_filtered['text'].apply(lambda x: word_tokenize(x.lower()))
-    positive_words = {}
-    for text in reviews_filtered['text']:
-        for word in text:
-            if sia.polarity_scores(word)['compound'] > 0:
-                positive_words[word] = positive_words.get(word, 0) + 1
-
-    sorted_positive_words = dict(sorted(positive_words.items(), key=lambda x: x[1], reverse=True)[:20])
-    
-    plt.figure(figsize=(10, 6))
-    bar_plot = plt.bar(sorted_positive_words.keys(), sorted_positive_words.values(), color='lightgreen')
-    plt.xlabel('Word')
-    plt.ylabel('Frequency')
-    plt.title('Top Positive Words')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot()
 
 # Check if the dataframe is empty:
 if df_selection.empty:
     st.warning("No data available based on the current filter settings!")
     st.stop()
 
+def create_word_cloud(reviews):
+    business_id = "4JNXUYY8wbaaDmk3BPzlWw"  # Replace with your business ID
+    business_reviews = reviews[reviews['business_id'] == business_id]
+    
+    stop_words = set(stopwords.words('english'))
+    word_list = ' '.join([word.lower() for text in business_reviews['text'] for word in word_tokenize(text) if word.isalpha() and word.lower() not in stop_words and word.lower() != 'food' and word.lower() != 'restaurant'])
+    
+    word_counter = Counter(word_list.split())
+    top_words = dict(word_counter.most_common(30))
+    
+    # Create the word cloud
+    wordcloud = WordCloud(width=800, height=600, background_color='white').generate_from_frequencies(top_words)
+
+    # Display the word cloud in Streamlit
+    st.image(wordcloud.to_array())
+
+
 # Expander for Graphs
 # with st.expander("Toggle Visibility"):
 #     # Star Rating Distribution Graph
 with tab2:
-    col1,col2,col3 = st.columns(3)
+    col1,col2 = st.columns(2)
     with col1:
         st.header("Vegas Ratings Heatmap Animation")
         rating_data = df[['latitude', 'longitude', 'stars', 'review_count']]
-        rating_data.loc['popularity'] = rating_data['stars'] * rating_data['review_count']
+        rating_data['popularity'] = rating_data['stars'] * rating_data['review_count']
         data = []
         stars_list = list(df_selection['stars'].unique())
         lat, lon, zoom_start = 36.127430, -115.138460, 11
@@ -296,7 +232,7 @@ with tab2:
         m = folium.Map(location=[lat, lon], tiles="OpenStreetMap", zoom_start=zoom_start)
         hm = plugins.HeatMapWithTime(data, max_opacity=0.3, auto_play=True, display_index=True, radius=7)
         hm.add_to(m)
-        folium_static(m, width=500, height=300)
+        folium_static(m, width=700, height=600)
 
     with col2:
         st.header("Star Rating Distribution")
@@ -312,62 +248,274 @@ with tab2:
         #     height = rect.get_height()
         #     ax.text(rect.get_x() + rect.get_width() / 2, height + 5, label, ha='center', va='bottom')
         # st.pyplot(fig_stars)
-        st.bar_chart(req)
+        st.bar_chart(req,width=0,height=600)
 
 # Vegas Ratings Heatmap Animation
     
 
 
+
+
+
 # Map of All Las Vegas Restaurants
 with tab1: 
-    # st.header("Map of All Las Vegas Restaurants")
-    # m_restaurants = folium.Map(location=[36.14, -115.2], zoom_start=11, tiles="OpenStreetMap")
-    # for index, row in df_selection.iterrows():
-    #     folium.CircleMarker(location=[row['latitude'], row['longitude']], radius=1, fill_opacity=0.6,
-    #                         color='purple').add_to(m_restaurants)
-    # folium_static(m_restaurants, width=300, height=300)
-    #basic basemap of the world
+    col1, col2,col3 = st.columns(3)
+    with col2:
+        # Basic basemap of the world
+        fig, ax = plt.subplots(figsize=(15, 6))
 
-# Assuming 'business' is your DataFrame with latitude and longitude columns
-    # Define the figure size
+        # Use ortho projection for the globe type version
+        m1 = Basemap(projection='ortho', lat_0=20, lon_0=-50, ax=ax)
+
+        # Hex codes from google maps color palette = http://www.color-hex.com/color-palette/9261
+        # Add continents
+        m1.fillcontinents(color='#bbdaa4', lake_color='#4a80f5')
+        # Add the oceans
+        m1.drawmapboundary(fill_color='#4a80f5')
+        # Draw the boundaries of the countries
+        m1.drawcountries(linewidth=0.1, color="black")
+
+        # Add the scatter points to indicate the locations of the businesses
+        mxy = m1(df["longitude"].tolist(), df["latitude"].tolist())
+        m1.scatter(mxy[0], mxy[1], s=3, c="orange", lw=3, alpha=1, zorder=5)
+
+        plt.title("World-wide Yelp Reviews")
+        st.pyplot(fig)
+    # with col1:
+    #             # Sample it down to only the North America region 
+    #     lon_min, lon_max = -132.714844, -59.589844
+    #     lat_min, lat_max = 13.976715, 56.395664
+
+    #     # Create the selector
+    #     idx_NA = (df["longitude"] > lon_min) & (df["longitude"] < lon_max) & (df["latitude"] > lat_min) & (df["latitude"] < lat_max)
+
+    #     # Apply the selector to subset
+    #     NA_business = df[idx_NA]
+
+    #     # Initiate the figure
+    #     st.pyplot(plt.figure(figsize=(12, 6)))
+    #     m2 = Basemap(
+    #         projection='merc',
+    #         llcrnrlat=lat_min,
+    #         urcrnrlat=lat_max,
+    #         llcrnrlon=lon_min,
+    #         urcrnrlon=lon_max,
+    #         lat_ts=35,
+    #         resolution='i'
+    #     )
+
+    #     m2.fillcontinents(color='#191919', lake_color='#000000')  # dark grey land, black lakes
+    #     m2.drawmapboundary(fill_color='#000000')  # black background
+    #     m2.drawcountries(linewidth=0.1, color="w")  # thin white line for country borders
+
+    #     # Plot the data
+    #     mxy = m2(NA_business["longitude"].tolist(), NA_business["latitude"].tolist())
+    #     m2.scatter(mxy[0], mxy[1], s=5, c="#1292db", lw=0, alpha=0.05, zorder=5)
+
+    #     # Title for Streamlit app
+    #     st.title("North America Region")
+        
 
 
-    # Use ortho projection for the globe type version
-    #  Set the size of the map
-    # Set the size of the map
-    map_width = 800  # Specify the width in pixels
-    map_height = 600  # Specify the height in pixels
+def get_data_from_drive_review(drive_link):
+    output = 'data_review.csv'
+    gdown.download(drive_link, output, quiet=True)
+    df = pd.read_csv(output, header=0)
+    return df
+drive_link_review = "https://drive.google.com/uc?id=1QP1nBDNw6mW-uj5RynsLvnnYRuj4s_Lp"
+df_review = get_data_from_drive_review(drive_link_review)
 
-    # Set up the Basemap
-    fig, ax = plt.subplots(figsize=(map_width / 100, map_height / 100))
-    m1 = Basemap(projection='ortho', lat_0=20, lon_0=-50, ax=ax)
-
-    # Hex codes from google maps color palette = http://www.color-hex.com/color-palette/9261
-    # Add continents
-    m1.fillcontinents(color='#bbdaa4', lake_color='#4a80f5')
-    # Add the oceans
-    m1.drawmapboundary(fill_color='#4a80f5')
-    # Draw the boundaries of the countries
-    m1.drawcountries(linewidth=0.1, color="black")
-
-    # Add the scatter points to indicate the locations of the businesses
-    mxy = m1(df["longitude"].tolist(), df["latitude"].tolist())
-    m1.scatter(mxy[0], mxy[1], s=3, c="orange", lw=3, alpha=1, zorder=5)
-
-    # Set title
-    st.title("World-wide Yelp Reviews")
-
-    # Show the plot in Streamlit
-    st.pyplot(fig)
-
+def generate_word_count_chart(reviews):
+    business_id = "4JNXUYY8wbaaDmk3BPzlWw"  # Replace with your business ID
+    business_reviews = reviews[reviews['business_id'] == business_id]
     
+    stop_words = set(stopwords.words('english'))
+    business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words and word.lower() not in ['food', 'restaurant']]))
+
+    word_counts = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
+    word_counts.columns = ['word', 'n']
+    top_words = word_counts.head(10)
+
+
+    st.subheader('Word Count')
+    st.bar_chart(top_words.set_index('word'),height=450,width=0)
+
+
 with tab3:
-    st.header('Sentimental Analysis of reviews')
-    mon_ami_gabi_reviews = review_df[review_df.business_id== "4JNXUYY8wbaaDmk3BPzlWw"]
-    st.write(mon_ami_gabi_reviews)
-    plot_useful_reviews(mon_ami_gabi_reviews)
-    plot_word_count("4JNXUYY8wbaaDmk3BPzlWw")
-    positive_words_bar_graph(review_df, "4JNXUYY8wbaaDmk3BPzlWw")
+    col1, col2,col3 = st.columns(3)
+    with col1:
+        # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+        # business_id = "4JNXUYY8wbaaDmk3BPzlWw"
+
+        # # Filter reviews for a specific business_id
+        # business_reviews = df_review[df_review['business_id'] == business_id]
+        # # st.title(len(business_reviews))
+        # # Tokenize and remove stopwords
+        # stop_words = set(stopwords.words('english'))
+        # business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words and word.lower() not in ['food', 'restaurant']]))
+
+        # # Count word occurrences
+        # word_counts = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
+        # word_counts.columns = ['word', 'n']
+
+        # # Sort and get top 10 words
+        # top_words = word_counts.head(10)
+        
+        # # Plot the bar chart
+        # fig, ax = plt.subplots()
+        # ax.barh(top_words['word'], top_words['n'], color='skyblue')
+        # ax.set_xlabel('Word Count')
+        # ax.set_ylabel('Word')
+        # ax.set_title('Word Count')
+
+        # # Show the plot in Streamlit
+        # st.pyplot(fig)
+        generate_word_count_chart(df_review)
+
+    with col2:
+        
+
+        # def positive_words_bar_graph(reviews, business_id):
+        #     # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+        #     business_reviews = reviews[reviews['business_id'] == business_id]
+
+        #     # Tokenize and remove stopwords
+        #     stop_words = set(stopwords.words('english'))
+        #     afinn = Afinn()
+
+        #     business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+
+        #     # Calculate Afinn scores
+        #     business_reviews['score'] = business_reviews['text'].apply(lambda x: afinn.score(x))
+
+        #     # Count word occurrences and calculate contributions
+        #     contributions = business_reviews.groupby('text')['score'].sum().reset_index()
+        #     contributions.columns = ['word', 'contribution']
+
+        #     # Get top 20 positive words
+        #     top_positive_words = contributions.sort_values(by='contribution', ascending=False).head(20)
+        #     st.write(top_positive_words)
+        #     # Plot bar graph
+        #     fig, ax = plt.subplots()
+        #     colors = top_positive_words['contribution'].apply(lambda x: 'green' if x > 0 else 'red')
+        #     ax.barh(top_positive_words['word'], top_positive_words['contribution'], color=colors)
+        #     ax.set_xlabel('Contribution')
+        #     ax.set_ylabel('Word')
+        #     ax.set_title('Positive Words Contribution')
+
+        #     return fig
+        # def positive_words_bar_graph(reviews, business_id):
+        #     # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
+        #     business_reviews = reviews[reviews['business_id'] == business_id]
+            
+        #     # Tokenize and remove stopwords
+        #     stop_words = set(stopwords.words('english'))
+        #     business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+            
+        #     # Count word occurrences and calculate contributions
+        #     contributions = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
+        #     contributions.columns = ['word', 'occurrences']
+            
+        #     afinn = pd.DataFrame({'word': list(stopwords.words('english')), 'score': 0})
+        #     contributions = pd.merge(contributions, afinn, how='left', on='word')
+        #     contributions['contribution'] = contributions['occurrences'] * contributions['score']
+            
+        #     # Get top 20 positive words
+        #     top_positive_words = contributions.sort_values(by='contribution', ascending=False).head(20)
+        #     st.title(len(top_positive_words))
+        #     st.write(top_positive_words)
+            
+
+        #     # Plot bar graph
+        #     fig, ax = plt.subplots()
+        #     colors = top_positive_words['contribution'].apply(lambda x: 'green' if x > 0 else 'red')
+        #     ax.barh(top_positive_words['word'], top_positive_words['contribution'], color=colors)
+        #     ax.set_xlabel('Contribution')
+        #     ax.set_ylabel('Word')
+        #     ax.set_title('Positive Words Contribution')
+
+        #     return fig
+        
+        # def positive_words_bar_graph(reviews, business_id):
+        #     # Tokenize and remove stopwords
+        #     business_reviews = reviews[reviews['business_id'] == business_id]
+        #     stop_words = set(stopwords.words('english'))
+        #     business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+            
+        #     afinn = Afinn()
+
+        #     # Tokenize and count occurrences
+        #     contributions = business_reviews['text'].apply(lambda x: word_tokenize(x)).explode().value_counts().reset_index()
+        #     contributions.columns = ['word', 'occurrences']
+
+        #     # Calculate contributions using Afinn scores
+        #     contributions['score'] = contributions['word'].apply(lambda word: afinn.score(word))
+            
+
+        #     # Get top 20 positive words
+        #     top_positive_words = contributions.groupby('word')['score'].sum().reset_index().nlargest(20, 'score')
+        #     top_positive_words.reset_index()
+        #     st.write(top_positive_words)
+            
+        #     # Plot bar graph
+        #     fig, ax = plt.subplots()
+        #     colors = np.where(top_positive_words['score'] > 0, 'green', 'red')
+        #     sns.barplot(x='score', y='word', data=top_positive_words, palette=colors)
+        #     ax.set_xlabel('Score')
+        #     ax.set_ylabel('Word')
+        #     ax.set_title('Positive Words Contribution')
+
+        #     return fig
+            
+
+        def positive_words_bar_graph(reviews, business_id):
+            # Tokenize and remove stopwords
+            business_reviews = reviews[reviews['business_id'] == business_id]
+            stop_words = set(stopwords.words('english'))
+            business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
+            
+            afinn = Afinn()
+
+            # Tokenize and count occurrences
+            contributions = business_reviews['text'].apply(lambda x: word_tokenize(x)).explode().value_counts().reset_index()
+            contributions.columns = ['word', 'occurrences']
+
+            # Calculate contributions using Afinn scores
+            contributions['score'] = contributions['word'].apply(lambda word: afinn.score(word))
+            
+            # Get top 20 positive and negative words
+            top_words = contributions.groupby('word')['score'].sum().reset_index()
+            
+            top_words = pd.concat([top_words.nlargest(20, 'score'), top_words.nsmallest(20, 'score')], ignore_index=True)
+            # top_words = top_words.nlargest(20, 'score').append(top_words.nsmallest(20, 'score'))
+            # st.write(top_words)
+            # Plot bar graph
+            fig, ax = plt.subplots(figsize=(10,8))
+            colors = np.where(top_words['score'] > 0, 'green', 'red')
+            sns.barplot(x='score', y='word', data=top_words, palette=colors)
+            ax.set_xlabel('Score')
+            ax.set_ylabel('Word')
+            # ax.set_title('Top 20 Positive and Negative Words Contribution')
+
+            return fig
+
+
+
+        # Example usage
+        # Replace this with your actual reviews DataFrame and business_id
+        reviews = df_review[['business_id', 'text']] 
+        business_id = "4JNXUYY8wbaaDmk3BPzlWw"
+
+        # Create the bar graph
+        st.subheader("Score of Top 20 Words")
+        fig = positive_words_bar_graph(reviews, business_id)
+        st.pyplot(fig)
+        # Show the plot in Streamlit
+
+    with col3:
+        st.subheader('Word Cloud for A specific business')
+        create_word_cloud(df_review)
+        
 
 
 # Hide Streamlit Style
@@ -378,4 +526,4 @@ hide_st_style = """
         header {visibility: hidden;}
         </style>
         """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+st.markdown(hide_st_style, unsafe_allow_html=True)  
