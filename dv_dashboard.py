@@ -99,13 +99,13 @@ with tab2:
         hm = plugins.HeatMapWithTime(data, max_opacity=0.3, auto_play=True, display_index=True, radius=7)
         hm.add_to(m)
 
-        folium_static(m, width=700, height=600)
+        folium_static(m, width=600, height=500)
 
     with col2:
         st.header("Star Rating Distribution")
         req = df_selection['stars'].value_counts().sort_index()
        
-        st.bar_chart(req,width=0,height=600)
+        st.bar_chart(req,width=0,height=500)
 
 # Vegas Ratings Heatmap Animation
     
@@ -178,10 +178,6 @@ with tab3:
         generate_word_count_chart(df_review)
 
     with col2:
-        
-
-       
-            
 
         def positive_words_bar_graph(reviews, business_id):
             # Tokenize and remove stopwords
@@ -231,89 +227,6 @@ with tab3:
         st.subheader('Word Cloud for A specific business')
         create_word_cloud(df_review)
         
-
-
-
-
-with tab3:
-    col1, col2, col3 = st.columns(3)
-    with col2:
-        # Assuming 'reviews' is your DataFrame with 'business_id' and 'text' columns
-        business_id = "4JNXUYY8wbaaDmk3BPzlWw"
-
-        # Filter reviews for a specific business_id
-        business_reviews = df_review[df_review['business_id'] == business_id]
-        # st.title(len(business_reviews))
-        # Tokenize and remove stopwords
-        stop_words = set(stopwords.words('english'))
-        business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words and word.lower() not in ['food', 'restaurant']]))
-
-        # Count word occurrences
-        word_counts = business_reviews['text'].str.split(expand=True).stack().value_counts().reset_index()
-        word_counts.columns = ['word', 'n']
-
-        # Sort and get top 10 words
-        top_words = word_counts.head(10)
-        
-        # Plot the bar chart
-        fig, ax = plt.subplots()
-        ax.barh(top_words['word'], top_words['n'], color='skyblue')
-        ax.set_xlabel('Word Count')
-        ax.set_ylabel('Word')
-        ax.set_title('Word Count')
-
-        # Show the plot in Streamlit
-        st.pyplot(fig)
-    with col3:
-        
-
-        
-            
-
-        def positive_words_bar_graph(reviews, business_id):
-            # Tokenize and remove stopwords
-            business_reviews = reviews[reviews['business_id'] == business_id]
-            stop_words = set(stopwords.words('english'))
-            business_reviews['text'] = business_reviews['text'].apply(lambda x: ' '.join([word.lower() for word in word_tokenize(x) if word.isalpha() and word.lower() not in stop_words]))
-            
-            afinn = Afinn()
-
-            # Tokenize and count occurrences
-            contributions = business_reviews['text'].apply(lambda x: word_tokenize(x)).explode().value_counts().reset_index()
-            contributions.columns = ['word', 'occurrences']
-
-            # Calculate contributions using Afinn scores
-            contributions['score'] = contributions['word'].apply(lambda word: afinn.score(word))
-            
-            # Get top 20 positive and negative words
-            top_words = contributions.groupby('word')['score'].sum().reset_index()
-            
-            top_words = pd.concat([top_words.nlargest(20, 'score'), top_words.nsmallest(20, 'score')], ignore_index=True)
-            # top_words = top_words.nlargest(20, 'score').append(top_words.nsmallest(20, 'score'))
-            # st.write(top_words)
-            # Plot bar graph
-            fig, ax = plt.subplots()
-            colors = np.where(top_words['score'] > 0, 'green', 'red')
-            sns.barplot(x='score', y='word', data=top_words, palette=colors)
-            ax.set_xlabel('Score')
-            ax.set_ylabel('Word')
-            ax.set_title('Top 20 Positive and Negative Words Contribution')
-
-            return fig
-
-
-
-        # Example usage
-        # Replace this with your actual reviews DataFrame and business_id
-        reviews = df_review[['business_id', 'text']] 
-        business_id = "4JNXUYY8wbaaDmk3BPzlWw"
-
-        # Create the bar graph
-        fig = positive_words_bar_graph(reviews, business_id)
-        st.pyplot(fig)
-        # Show the plot in Streamlit
-        
-
 
 
 # Hide Streamlit Style
