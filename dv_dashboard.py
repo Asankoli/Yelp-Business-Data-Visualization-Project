@@ -23,6 +23,8 @@ from afinn import Afinn
 import numpy as np
 from collections import Counter
 
+nltk.download('punkt')
+nltk.download('stopwords')
 
 # Read Data
 @st.cache_data
